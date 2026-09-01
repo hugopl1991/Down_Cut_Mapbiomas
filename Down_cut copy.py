@@ -124,26 +124,26 @@ def process_year(
     raster_path = download_raster(year, download_dir)
     logging.info("\n[PROCESSANDO] Ano %s", year)
 
-    for state_name in states:
-        shapefile_path = shape_dir / f"{state_name}.shp"
+    for state in states:
+        shapefile_path = shape_dir / f"{state}.shp"
         if not shapefile_path.exists():
             logging.warning("[AVISO] Shapefile não encontrado: %s", shapefile_path)
             continue
 
-        state_code = state_name.split("_")[0]
-        output_name = f"mapbiomas_col11_{state_code}_{year}.tif"
-        output_path = output_dir / output_name
+        state_dir = output_dir / state
+        ensure_directories(state_dir)
 
+        output_path = state_dir / f"mapbiomas_col11_{state}_{year}.tif"
         if output_path.exists():
-            logging.info("[EXISTE] %s", output_name)
+            logging.info("[OK] %s %s já processado", state, year)
             continue
 
-        logging.info("[CLIP] %s - %s", state_code, year)
+        logging.info("[CLIP] %s - %s", state, year)
         try:
             clip_raster(raster_path, shapefile_path, output_path)
-            logging.info("[OK] %s", output_name)
-        except Exception as exc:
-            logging.error("[ERRO] %s - %s: %s", state_code, year, exc)
+            logging.info("[OK] %s", output_path)
+        except Exception as exc:  # pragma: no cover - logging is enough
+            logging.error("[ERRO] %s - %s: %s", state, year, exc)
 
 
 def parse_args() -> argparse.Namespace:

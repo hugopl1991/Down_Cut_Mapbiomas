@@ -1,27 +1,14 @@
-import os
+import argparse
+import logging
+from pathlib import Path
+
 import geopandas as gpd
 import rasterio
 from rasterio.mask import mask
 
 
-# ============================================================
-# CONFIGURAÇÃO
-# ============================================================
-
-# Diretório onde estão os rasters nacionais já baixados
-RASTER_DIR = "dados/downloads"
-
-# Diretório dos shapefiles
-SHAPE_DIR = "Shape_estados"
-
-# Diretório de saída
-OUTPUT_DIR = "dados/estados"
-
-# Anos a processar
-ANOS = range(1985, 2026)
-
-# Shapefiles dos estados
-ESTADOS = [
+DEFAULT_YEARS = range(1985, 2026)
+DEFAULT_STATES = [
     "AM_Mapbiomas",
     "BA_Mapbiomas",
     "ES_Mapbiomas",
@@ -32,231 +19,150 @@ ESTADOS = [
     "SP_Mapbiomas",
 ]
 
-os.makedirs(OUTPUT_DIR, exist_ok=True)
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
 
-# ============================================================
-# RECORTE DO RASTER
-# ============================================================
-
-def clip_raster(raster_path, shapefile_path, output_path):
-
+def clip_raster(raster_path: Path, shapefile_path: Path, output_path: Path) -> Path:
+    """Recorta um raster nacional por um shapefile de estado."""
     with rasterio.open(raster_path) as src:
-
-        # ----------------------------------------------------
-        # Ler shapefile
-        # ----------------------------------------------------
-
         shape = gpd.read_file(shapefile_path)
 
-        # ----------------------------------------------------
-        # Verificar CRS
-        # ----------------------------------------------------
+        if shape.empty:
+            raise ValueError(f"Shapefile vazio: {shapefile_path}")
 
         if shape.crs is None:
-            raise ValueError(
-                f"Shapefile sem CRS definido: {shapefile_path}"
-            )
+            raise ValueError(f"Shapefile sem CRS definido: {shapefile_path}")
 
-        # Reprojetar somente para o CRS do raster
         if shape.crs != src.crs:
             shape = shape.to_crs(src.crs)
 
-        # ----------------------------------------------------
-        # Remover geometrias vazias
-        # ----------------------------------------------------
-
-        shape = shape[
-            shape.geometry.notna()
-            & ~shape.geometry.is_empty
-        ]
-
-        geometries = shape.geometry.values
-
-        if len(geometries) == 0:
-            raise ValueError(
-                f"Nenhuma geometria válida em: {shapefile_path}"
-            )
-
-        # ----------------------------------------------------
-        # RECORTE
-        #
-        # all_touched=True:
-        # inclui todo pixel que tiver contato com a máscara.
-        # ----------------------------------------------------
+        valid_shape = shape[shape.geometry.notna() & ~shape.geometry.is_empty]
+        if valid_shape.empty:
+            raise ValueError(f"Nenhuma geometria válida em: {shapefile_path}")
 
         clipped, transform = mask(
             src,
-            geometries,
+            valid_shape.geometry.values,
             crop=True,
-            all_touched=True
+            all_touched=True,
         )
-
-        # ----------------------------------------------------
-        # Atualizar perfil mantendo as propriedades originais
-        # ----------------------------------------------------
 
         profile = src.profile.copy()
-
         profile.update(
-            height=clipped.shape[1],
-            width=clipped.shape[2],
-            transform=transform,
-            compress="lzw"
+            {
+                "height": clipped.shape[1],
+                "width": clipped.shape[2],
+                "transform": transform,
+                "compress": "lzw",
+            }
         )
 
-        # ----------------------------------------------------
-        # Salvar
-        # ----------------------------------------------------
+        output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        with rasterio.open(
-            output_path,
-            "w",
-            **profile
-        ) as dst:
-
+        with rasterio.open(output_path, "w", **profile) as dst:
             dst.write(clipped)
-
-            # Preservar descrição das bandas
             if src.descriptions:
                 dst.descriptions = src.descriptions
 
     return output_path
 
 
-# ============================================================
-# PROCESSAMENTO DE UM ANO
-# ============================================================
+def process_year(
+    year: int,
+    states: list[str],
+    raster_dir: Path,
+    shape_dir: Path,
+    output_dir: Path,
+) -> None:
+    """Processa os rasters nacionais de um ano, recortando para cada estado."""
+    raster_name = f"brazil_coverage-col11_{year}.tif"
+    raster_path = raster_dir / raster_name
 
-def process_year(year):
-
-    # --------------------------------------------------------
-    # Raster nacional
-    # --------------------------------------------------------
-
-    raster_name = (
-        f"brazil_coverage-col11_{year}.tif"
-    )
-
-    raster_path = os.path.join(
-        RASTER_DIR,
-        raster_name
-    )
-
-    if not os.path.exists(raster_path):
-
-        print(
-            f"[AVISO] Raster não encontrado: "
-            f"{raster_path}"
-        )
-
+    if not raster_path.exists():
+        logging.warning("[AVISO] Raster não encontrado: %s", raster_path)
         return
 
-    print()
-    print("=" * 70)
-    print(f"PROCESSANDO ANO: {year}")
-    print("=" * 70)
+    logging.info("\n%s", "=" * 70)
+    logging.info("PROCESSANDO ANO: %s", year)
+    logging.info("%s", "=" * 70)
 
-    # --------------------------------------------------------
-    # Processar estados
-    # --------------------------------------------------------
-
-    for estado_nome in ESTADOS:
-
-        # ----------------------------------------------------
-        # Shapefile
-        # ----------------------------------------------------
-
-        shapefile_path = os.path.join(
-            SHAPE_DIR,
-            f"{estado_nome}.shp"
-        )
-
-        if not os.path.exists(shapefile_path):
-
-            print(
-                f"[AVISO] Shapefile não encontrado: "
-                f"{shapefile_path}"
-            )
-
+    for state_name in states:
+        shapefile_path = shape_dir / f"{state_name}.shp"
+        if not shapefile_path.exists():
+            logging.warning("[AVISO] Shapefile não encontrado: %s", shapefile_path)
             continue
 
-        # ----------------------------------------------------
-        # Extrair sigla
-        #
-        # AM_Mapbiomas -> AM
-        # BA_Mapbiomas -> BA
-        # PA_Mapbiomas -> PA
-        # ----------------------------------------------------
+        state_code = state_name.split("_")[0]
+        output_name = f"mapbiomas_col11_{state_code}_{year}.tif"
+        output_path = output_dir / output_name
 
-        sigla = estado_nome.split("_")[0]
-
-        # ----------------------------------------------------
-        # Nome final
-        # ----------------------------------------------------
-
-        output_name = (
-            f"mapbiomas_col11_{sigla}_{year}.tif"
-        )
-
-        output_path = os.path.join(
-            OUTPUT_DIR,
-            output_name
-        )
-
-        # ----------------------------------------------------
-        # Se já existe, não processar novamente
-        # ----------------------------------------------------
-
-        if os.path.exists(output_path):
-
-            print(
-                f"[EXISTE] {output_name}"
-            )
-
+        if output_path.exists():
+            logging.info("[EXISTE] %s", output_name)
             continue
 
-        # ----------------------------------------------------
-        # Recorte
-        # ----------------------------------------------------
-
-        print(
-            f"[CLIP] {sigla} - {year}"
-        )
-
+        logging.info("[CLIP] %s - %s", state_code, year)
         try:
+            clip_raster(raster_path, shapefile_path, output_path)
+            logging.info("[OK] %s", output_name)
+        except Exception as exc:
+            logging.error("[ERRO] %s - %s: %s", state_code, year, exc)
 
-            clip_raster(
-                raster_path,
-                shapefile_path,
-                output_path
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Recorta rasters nacionais do MapBiomas por estado usando shapefiles locais."
+    )
+    parser.add_argument(
+        "--years",
+        type=int,
+        nargs="+",
+        default=list(DEFAULT_YEARS),
+        help="Anos a processar. Ex.: --years 1985 1990 2020",
+    )
+    parser.add_argument(
+        "--states",
+        nargs="+",
+        default=DEFAULT_STATES,
+        help="Estados a processar. Ex.: --states AM_Mapbiomas SP_Mapbiomas",
+    )
+    parser.add_argument(
+        "--raster-dir",
+        type=Path,
+        default=Path("dados/downloads"),
+        help="Diretório com os rasters nacionais baixados.",
+    )
+    parser.add_argument(
+        "--shape-dir",
+        type=Path,
+        default=Path("Shape_estados"),
+        help="Diretório com os shapefiles dos estados.",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=Path("dados/estados"),
+        help="Diretório para salvar os rasters recortados.",
+    )
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = parse_args()
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+    args.shape_dir.mkdir(parents=True, exist_ok=True)
+
+    for year in args.years:
+        try:
+            process_year(
+                year=year,
+                states=args.states,
+                raster_dir=args.raster_dir,
+                shape_dir=args.shape_dir,
+                output_dir=args.output_dir,
             )
+        except Exception as exc:
+            logging.error("[ERRO GERAL] Ano %s: %s", year, exc)
 
-            print(
-                f"[OK] {output_name}"
-            )
-
-        except Exception as e:
-
-            print(
-                f"[ERRO] {sigla} - {year}: {e}"
-            )
-
-
-# ============================================================
-# MAIN
-# ============================================================
 
 if __name__ == "__main__":
-
-    for ano in ANOS:
-
-        try:
-
-            process_year(ano)
-
-        except Exception as e:
-
-            print(
-                f"[ERRO GERAL] Ano {ano}: {e}"
-            )
+    main()
