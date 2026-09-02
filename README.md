@@ -51,7 +51,7 @@ python Cut_mapbiomas.py --years 2020 2021 --states AM_Mapbiomas SP_Mapbiomas
 ```text
 INFO: [DOWNLOAD] Ano 2020 - https://...
 INFO: [CLIP] AM_Mapbiomas - 2020
-INFO: [OK] dados/estados/AM_Mapbiomas/AM_Mapbiomas_2020.tif
+INFO: [OK] dados/estados/AM_Mapbiomas/mapbiomas_col11_AM_2020.tif
 ```
 
 ## Observações
