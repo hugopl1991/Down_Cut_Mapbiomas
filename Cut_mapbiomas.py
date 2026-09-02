@@ -75,7 +75,7 @@ def process_year(
     output_dir: Path,
 ) -> None:
     """Processa os rasters nacionais de um ano, recortando para cada estado."""
-    raster_name = f"brazil_coverage-col11_{year}.tif"
+    raster_name = f"mapbiomas_col11_Brazil_{year}.tif"
     raster_path = raster_dir / raster_name
 
     if not raster_path.exists():
