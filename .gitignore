@@ -19,8 +19,14 @@ env/
 Shape_estados/
 !Shape_estados/.gitkeep
 
+Shape_estados_old/
+!Shape_estados_old/.gitkeep
+
 dados/
 !dados/.gitkeep
+
+Rasters_Transicao_Anual/
+!Rasters_Transicao_Anual/.gitkeep
 
 # Logs
 *.log
@@ -28,3 +34,6 @@ dados/
 # OS files
 .DS_Store
 Thumbs.db
+
+# QGIS
+*.qgz

@@ -9,14 +9,14 @@ from rasterio.mask import mask
 
 DEFAULT_YEARS = range(1985, 2026)
 DEFAULT_STATES = [
-    "AM_Mapbiomas",
-    "BA_Mapbiomas",
+    #"AM_Mapbiomas",
+    #"BA_Mapbiomas",
     "ES_Mapbiomas",
-    "MA_Mapbiomas",
-    "MG_Mapbiomas",
-    "PA_Mapbiomas",
-    "RJ_Mapbiomas",
-    "SP_Mapbiomas",
+    #"MA_Mapbiomas",
+    #"MG_Mapbiomas",
+    #"PA_Mapbiomas",
+    #"RJ_Mapbiomas",
+    #"SP_Mapbiomas",
 ]
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
