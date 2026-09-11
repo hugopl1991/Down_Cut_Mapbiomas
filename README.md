@@ -14,6 +14,8 @@ A ideia principal é:
 - `Down_cut.py`: baixa o raster nacional do MapBiomas e recorta automaticamente cada estado informado.
 - `Cut_mapbiomas.py`: recorta rasters nacionais já baixados sem realizar novo download.
 - `Avaliacao.py`: avalia os rasters recortados por unidade geográfica, identifica as classes MapBiomas válidas e exporta um CSV com resumo por ano, estado e atributos da operação.
+- `NoForest2Forest_raster.py`: identifica pixels que saíram de classes de não-floresta para floresta entre dois anos específicos, gera um raster de transição e exporta um CSV com área alterada por operação.
+- `NoForest2Forest_v2.py`: faz a mesma análise de transição em série para todos os anos entre um intervalo definido, produzindo rasters e CSV anual por período.
 - `Shape_estados/`: pasta com os shapefiles dos estados brasileiros.
 - `Shape_estados/AIO/`: shapefiles das áreas de interesse/operacionais usados na avaliação.
 - `dados/downloads/`: armazenamento dos rasters nacionais baixados.
@@ -49,6 +51,8 @@ Down_Cut_Mapbiomas/
 ├── Down_cut.py
 ├── Cut_mapbiomas.py
 ├── Avaliacao.py
+├── NoForest2Forest_raster.py
+├── NoForest2Forest_v2.py
 ├── README.md
 ├── Shape_estados/
 │   ├── AM_Mapbiomas.shp
@@ -62,6 +66,10 @@ Down_Cut_Mapbiomas/
 │   ├── downloads/
 │   ├── estados/
 │   └── classes_mapbiomas_ADAIMO_1985_2025.csv
+├── Rasters_Transicao/
+├── Rasters_Transicao_Anual/
+├── transicao_nao_floresta_para_floresta_1985_2024.csv
+├── transicao_nao_floresta_para_floresta_anual.csv
 └── ...
 ```
 
@@ -129,6 +137,55 @@ Colunas principais do CSV:
 - `Classe_ID`
 
 Esse arquivo é útil para comparar a presença de classes do MapBiomas por operação, estrutura e manejo ao longo do tempo.
+
+### 4) Detectar transição de não-floresta para floresta
+
+Esses scripts focam em uma análise específica de recobrimento: identificar áreas que estavam em classes de não-floresta no ano inicial e passaram para classes de floresta no ano final. Eles também geram rasters binários de transição e resumem a área convertida por unidade operacional.
+
+#### 4.1) Comparação entre dois anos fixos
+
+O script `NoForest2Forest_raster.py` compara um intervalo definido por `ANO_INICIAL` e `ANO_FINAL` para um estado informado. Ele:
+
+- lê o raster de cada ano;
+- recorta por cada geometria da pasta `Shape_estados/AIO`;
+- identifica pixels da classe de origem e da classe de destino;
+- grava um raster com as áreas de transição;
+- exporta um CSV com os valores medidos por operação.
+
+Exemplo de execução:
+
+```bash
+python NoForest2Forest_raster.py
+```
+
+Arquivo gerado:
+
+```text
+transicao_nao_floresta_para_floresta_1985_2024.csv
+```
+
+#### 4.2) Comparação anual em série
+
+O script `NoForest2Forest_v2.py` percorre todos os anos do intervalo configurado e compara cada par consecutivo (`1985-1986`, `1986-1987`, ...). Isso permite avaliar a transição ao longo de toda a série temporal, com um registro por período anual.
+
+Exemplo de execução:
+
+```bash
+python NoForest2Forest_v2.py
+```
+
+Arquivo gerado:
+
+```text
+transicao_nao_floresta_para_floresta_anual.csv
+```
+
+Os rasters produzidos ficam em pastas como:
+
+```text
+Rasters_Transicao/
+Rasters_Transicao_Anual/
+```
 
 ## Nome dos arquivos gerados
 
